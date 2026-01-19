@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: plant-care-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-change_this_secret_in_production}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - TREFLE_API_KEY=${TREFLE_API_KEY}
+      - PERENUAL_API_KEY=${PERENUAL_API_KEY}
+    volumes:
+      - plant_data:/app/data
+      - plant_uploads:/app/data/uploads
+    restart: unless-stopped
+    networks:
+      - plant-care-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    container_name: plant-care-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - plant-care-network
+
+networks:
+  plant-care-network:
+    driver: bridge
+
+volumes:
+  plant_data:
+    driver: local
+  plant_uploads:
+    driver: local
