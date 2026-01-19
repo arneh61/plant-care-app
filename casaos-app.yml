@@ -1,0 +1,104 @@
+name: plant-care-app
+services:
+  backend:
+    image: ghcr.io/YOUR_GITHUB_USERNAME/plant-care-app-backend:latest
+    container_name: plant-care-backend
+    restart: unless-stopped
+    ports:
+      - target: 3001
+        published: 3001
+        protocol: tcp
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      TREFLE_API_KEY: ${TREFLE_API_KEY}
+      PERENUAL_API_KEY: ${PERENUAL_API_KEY}
+    volumes:
+      - type: volume
+        source: plant_data
+        target: /app/data
+      - type: volume
+        source: plant_uploads
+        target: /app/data/uploads
+    networks:
+      - plant-care-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    x-casaos:
+      envs:
+        - container: JWT_SECRET
+          description:
+            en_us: JWT secret for authentication (REQUIRED - use long random string)
+        - container: PERENUAL_API_KEY
+          description:
+            en_us: Perenual API key for plant database (Optional - https://perenual.com/docs/api)
+        - container: TREFLE_API_KEY
+          description:
+            en_us: Trefle API key for plant database (Optional - https://trefle.io/)
+        - container: CLAUDE_API_KEY
+          description:
+            en_us: Claude API key for Plant Doctor (Optional - https://console.anthropic.com/)
+      volumes:
+        - container: /app/data
+          description:
+            en_us: SQLite database storage
+        - container: /app/data/uploads
+          description:
+            en_us: Plant photos storage
+
+  frontend:
+    image: ghcr.io/YOUR_GITHUB_USERNAME/plant-care-app-frontend:latest
+    container_name: plant-care-frontend
+    restart: unless-stopped
+    ports:
+      - target: 80
+        published: 3000
+        protocol: tcp
+    networks:
+      - plant-care-network
+    depends_on:
+      - backend
+    x-casaos:
+      ports:
+        - container: "80"
+          description:
+            en_us: Web UI port
+
+networks:
+  plant-care-network:
+    driver: bridge
+
+volumes:
+  plant_data:
+    driver: local
+  plant_uploads:
+    driver: local
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: frontend
+  author: Your Name
+  category: Utilities
+  description:
+    en_us: A comprehensive plant care management app with photo tracking, watering schedules, and collaborative features. Search from multiple plant databases, track growth with photos, and manage care routines for all your plants.
+  tagline:
+    en_us: Track and care for your plants with ease
+  developer: Your Name
+  icon: https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/plant-care-app/main/.casaos/icon.png
+  screenshot_link:
+    - https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/plant-care-app/main/.casaos/screenshot.png
+  thumbnail: https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/plant-care-app/main/.casaos/thumbnail.png
+  title:
+    en_us: Plant Care App
+  index: /
+  port_map: "3000"
+  scheme: http
+  store_app_id: plant-care-app
+  version: "1.0.0"

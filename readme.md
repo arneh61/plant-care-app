@@ -14,10 +14,47 @@ A comprehensive plant care management application with multiple plant databases,
 
 ## Quick Start with CasaOS
 
+### Two Deployment Options
+
+**🚀 Option 1: Pre-built Images (Recommended - Faster)**
+- Pull ready-to-use Docker images from GitHub Container Registry
+- No build time on your server (instant deployment!)
+- Automatic builds on every code push
+- See [GITHUB_CONTAINER_REGISTRY.md](GITHUB_CONTAINER_REGISTRY.md)
+
+**🔨 Option 2: Build Locally**
+- Build Docker images on your CasaOS server
+- Takes 5-10 minutes on first deployment
+- No GitHub Actions setup needed
+- See instructions below
+
 ### Prerequisites
 - CasaOS installed on your server
 - Docker and Docker Compose installed
-- GitHub account (for cloning the repository)
+- GitHub account (for cloning/pushing the repository)
+
+### Option 1: Deploy with Pre-built Images (Fast!)
+
+**See detailed guide:** [GITHUB_CONTAINER_REGISTRY.md](GITHUB_CONTAINER_REGISTRY.md)
+
+**Quick steps:**
+
+1. Push code to GitHub (enables automatic Docker builds)
+2. Wait for GitHub Actions to build images (~5 min first time)
+3. On CasaOS:
+```bash
+cd /DATA/AppData
+git clone https://github.com/YOUR_USERNAME/plant-care-app.git
+cd plant-care-app
+cp .env.example .env
+nano .env  # Add JWT_SECRET and optional API keys
+export GITHUB_USERNAME=YOUR_USERNAME
+./setup-ghcr.sh
+```
+
+Access at: `http://your-casaos-ip:3000`
+
+### Option 2: Build Locally (Traditional Method)
 
 ### Deployment Steps
 
