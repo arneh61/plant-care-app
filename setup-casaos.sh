@@ -34,9 +34,17 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
+# Check Docker Compose (V2 or V1)
+if docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+    echo "✓ Using Docker Compose V2"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+    echo "✓ Using Docker Compose V1"
+else
+    echo "❌ Docker Compose is not installed"
+    echo "   CasaOS should have 'docker compose' (V2) available"
+    echo "   Try: docker compose version"
     exit 1
 fi
 
@@ -46,11 +54,11 @@ echo ""
 
 # Stop existing containers
 echo "Stopping existing containers (if any)..."
-docker-compose down 2>/dev/null
+$COMPOSE_CMD down 2>/dev/null
 
 # Build and start containers
 echo "Building and starting containers..."
-docker-compose up -d --build
+$COMPOSE_CMD up -d --build
 
 # Wait for containers to be healthy
 echo ""
@@ -60,7 +68,7 @@ sleep 10
 # Check container status
 echo ""
 echo "Container Status:"
-docker-compose ps
+$COMPOSE_CMD ps
 
 echo ""
 echo "======================================"
@@ -72,12 +80,12 @@ echo "  Frontend: http://$(hostname -I | awk '{print $1}'):3000"
 echo "  Backend:  http://$(hostname -I | awk '{print $1}'):3001"
 echo ""
 echo "View logs:"
-echo "  docker-compose logs -f"
+echo "  $COMPOSE_CMD logs -f"
 echo ""
 echo "Stop the app:"
-echo "  docker-compose down"
+echo "  $COMPOSE_CMD down"
 echo ""
 echo "Update the app:"
 echo "  git pull origin main"
-echo "  docker-compose up -d --build"
+echo "  $COMPOSE_CMD up -d --build"
 echo ""

@@ -44,8 +44,17 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
+# Check Docker Compose (V2 or V1)
+if docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+    echo "✓ Using Docker Compose V2"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+    echo "✓ Using Docker Compose V1"
+else
     echo "❌ Docker Compose is not installed"
+    echo "   CasaOS should have 'docker compose' (V2) available"
+    echo "   Try: docker compose version"
     exit 1
 fi
 
@@ -55,10 +64,10 @@ echo "Images: ghcr.io/$GITHUB_USERNAME/plant-care-app-{backend,frontend}:latest"
 echo ""
 
 # Stop existing containers
-docker-compose -f docker-compose.ghcr.yml down 2>/dev/null
+$COMPOSE_CMD -f docker-compose.ghcr.yml down 2>/dev/null
 
 # Pull images
-if ! docker-compose -f docker-compose.ghcr.yml pull; then
+if ! $COMPOSE_CMD -f docker-compose.ghcr.yml pull; then
     echo ""
     echo "❌ Failed to pull images. Common issues:"
     echo "   1. Images not yet built on GitHub (check Actions tab)"
@@ -74,7 +83,7 @@ fi
 # Start containers
 echo ""
 echo "Starting containers..."
-docker-compose -f docker-compose.ghcr.yml up -d
+$COMPOSE_CMD -f docker-compose.ghcr.yml up -d
 
 # Wait for health check
 echo ""
@@ -84,7 +93,7 @@ sleep 15
 # Check status
 echo ""
 echo "Container Status:"
-docker-compose -f docker-compose.ghcr.yml ps
+$COMPOSE_CMD -f docker-compose.ghcr.yml ps
 
 echo ""
 echo "=============================================="
@@ -96,9 +105,9 @@ echo "  Frontend: http://$(hostname -I | awk '{print $1}'):3000"
 echo "  Backend:  http://$(hostname -I | awk '{print $1}'):3001"
 echo ""
 echo "View logs:"
-echo "  docker-compose -f docker-compose.ghcr.yml logs -f"
+echo "  $COMPOSE_CMD -f docker-compose.ghcr.yml logs -f"
 echo ""
 echo "Update images:"
-echo "  docker-compose -f docker-compose.ghcr.yml pull"
-echo "  docker-compose -f docker-compose.ghcr.yml up -d"
+echo "  $COMPOSE_CMD -f docker-compose.ghcr.yml pull"
+echo "  $COMPOSE_CMD -f docker-compose.ghcr.yml up -d"
 echo ""
