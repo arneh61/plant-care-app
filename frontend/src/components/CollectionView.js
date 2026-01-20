@@ -264,8 +264,8 @@ export default function CollectionView() {
                 </div>
                 {plant.scientific_name && <div className="scientific-name">{plant.scientific_name}</div>}
                 <div className="care-info">
-                  <div>💧 {careData.watering_details?.times_per_week || 'Unknown'}</div>
-                  <div>☀️ {Array.isArray(careData.sunlight) ? careData.sunlight[0] : careData.sunlight}</div>
+                  <div>💧 {careData.watering_details?.times_per_week || careData.watering || 'Unknown'}</div>
+                  <div>☀️ {Array.isArray(careData.sunlight) ? careData.sunlight[0] : (careData.sunlight || 'Unknown')}</div>
                 </div>
                 <div className="status-row">
                   <div className="watering-status">{plant.last_watered ? `💧 ${formatDistanceToNow(new Date(plant.last_watered))} ago` : '💧 Never'}</div>
