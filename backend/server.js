@@ -531,7 +531,48 @@ app.get('/api/plants/search', authenticate, async (req, res) => {
     
     console.log('Not in cache, trying multiple plant databases...');
 
-    // Try Perenual API first (most comprehensive)
+    // Try Chlorobase first (curated plant database with detailed care info)
+    console.log('Trying Chlorobase...');
+    const chlorobaseResults = await scrapeChlorobase(q);
+    if (chlorobaseResults && chlorobaseResults.length > 0) {
+      console.log(`Found ${chlorobaseResults.length} results from Chlorobase`);
+
+      // Cache the results with care data
+      for (const plant of chlorobaseResults) {
+        try {
+          const careData = await getChlorobaseDetails(plant.external_id);
+          db.prepare(`
+            INSERT OR IGNORE INTO plant_species_cache
+            (external_id, common_name, scientific_name, image_url, source, care_data, source_url)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            plant.id,
+            plant.common_name,
+            plant.scientific_name,
+            plant.image_url,
+            'chlorobase',
+            JSON.stringify(careData),
+            plant.source_url
+          );
+        } catch (err) {
+          console.error('Cache insert error:', err.message);
+        }
+      }
+
+      return res.json({
+        data: chlorobaseResults.map(p => ({
+          ...p,
+          default_image: p.image_url ? {
+            thumbnail: p.image_url,
+            regular_url: p.image_url
+          } : null
+        })),
+        from_cache: false,
+        source: 'chlorobase'
+      });
+    }
+
+    // Try Perenual API second (comprehensive database)
     console.log('Trying Perenual API...');
     const perenualResults = await searchPerenualAPI(q);
     if (perenualResults && perenualResults.length > 0) {
@@ -606,47 +647,6 @@ app.get('/api/plants/search', authenticate, async (req, res) => {
         })),
         from_cache: false,
         source: 'trefle'
-      });
-    }
-
-    // Try Chlorobase (curated plant database with care info)
-    console.log('Trying Chlorobase...');
-    const chlorobaseResults = await scrapeChlorobase(q);
-    if (chlorobaseResults && chlorobaseResults.length > 0) {
-      console.log(`Found ${chlorobaseResults.length} results from Chlorobase`);
-
-      // Cache the results with care data
-      for (const plant of chlorobaseResults) {
-        try {
-          const careData = await getChlorobaseDetails(plant.external_id);
-          db.prepare(`
-            INSERT OR IGNORE INTO plant_species_cache
-            (external_id, common_name, scientific_name, image_url, source, care_data, source_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            plant.id,
-            plant.common_name,
-            plant.scientific_name,
-            plant.image_url,
-            'chlorobase',
-            JSON.stringify(careData),
-            plant.source_url
-          );
-        } catch (err) {
-          console.error('Cache insert error:', err.message);
-        }
-      }
-
-      return res.json({
-        data: chlorobaseResults.map(p => ({
-          ...p,
-          default_image: p.image_url ? {
-            thumbnail: p.image_url,
-            regular_url: p.image_url
-          } : null
-        })),
-        from_cache: false,
-        source: 'chlorobase'
       });
     }
 
