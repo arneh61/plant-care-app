@@ -325,6 +325,135 @@ async function getPerenualDetails(plantId) {
   }
 }
 
+// Helper function to scrape Chlorobase for plant data
+async function scrapeChlorobase(plantName) {
+  try {
+    // Chlorobase uses French plant names and scientific names
+    // Try searching with the plant name converted to lowercase and hyphenated
+    const searchTerm = plantName.toLowerCase().replace(/\s+/g, '-');
+
+    // Try common genera first
+    const commonGenera = ['monstera', 'philodendron', 'pothos', 'calathea', 'maranta',
+                          'ficus', 'alocasia', 'anthurium', 'syngonium', 'peperomia'];
+
+    let genus = null;
+    for (const g of commonGenera) {
+      if (plantName.toLowerCase().includes(g)) {
+        genus = g;
+        break;
+      }
+    }
+
+    if (!genus) {
+      // Try to guess genus from first word
+      genus = plantName.split(' ')[0].toLowerCase();
+    }
+
+    // Try to fetch the genus page
+    const genusUrl = `https://chlorobase.com/fr/plantes/${genus}`;
+    console.log(`Trying Chlorobase genus: ${genusUrl}`);
+
+    const response = await axios.get(genusUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; PlantCareBot/1.0)'
+      },
+      timeout: 5000
+    });
+
+    const html = response.data;
+    const results = [];
+
+    // Simple HTML parsing to find plant links and names
+    // Look for plant links in the format /fr/plantes/genus/species
+    const linkRegex = /href="\/fr\/plantes\/([^"]+)"/g;
+    const matches = [...html.matchAll(linkRegex)];
+
+    for (const match of matches.slice(0, 5)) {
+      const plantPath = match[1];
+      const parts = plantPath.split('/');
+      const speciesName = parts[parts.length - 1];
+
+      // Only include if it matches our search
+      if (plantPath.toLowerCase().includes(searchTerm) ||
+          searchTerm.includes(speciesName)) {
+
+        results.push({
+          id: `chlorobase_${plantPath.replace(/\//g, '_')}`,
+          external_id: plantPath,
+          common_name: speciesName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          scientific_name: parts.join(' ').replace(/-/g, ' '),
+          image_url: null, // We'd need to fetch the individual page for images
+          source: 'chlorobase',
+          source_url: `https://chlorobase.com/fr/plantes/${plantPath}`
+        });
+      }
+    }
+
+    return results.length > 0 ? results : null;
+  } catch (error) {
+    console.error('Chlorobase scrape error:', error.message);
+    return null;
+  }
+}
+
+// Helper function to get detailed care data from Chlorobase
+async function getChlorobaseDetails(plantPath) {
+  try {
+    const url = `https://chlorobase.com/fr/plantes/${plantPath}`;
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; PlantCareBot/1.0)'
+      },
+      timeout: 5000
+    });
+
+    const html = response.data;
+
+    // Parse care information from the page
+    // This is a simplified parser - real implementation would need proper HTML parsing
+    let watering = 'Average';
+    let sunlight = ['Bright indirect light'];
+    let humidity = 'Average (40-60%)';
+
+    // Look for watering info
+    if (html.includes('Besoins modérés') || html.includes('modéré')) {
+      watering = 'Average';
+    } else if (html.includes('Besoins élevés') || html.includes('élevé')) {
+      watering = 'Frequent';
+    } else if (html.includes('Besoins faibles') || html.includes('faible')) {
+      watering = 'Minimum';
+    }
+
+    // Look for light info
+    if (html.includes('Lumière indirecte') || html.includes('indirect')) {
+      sunlight = ['Bright indirect light'];
+    } else if (html.includes('Lumière vive') || html.includes('vive')) {
+      sunlight = ['Bright light'];
+    } else if (html.includes('Faible') || html.includes('ombre')) {
+      sunlight = ['Low light'];
+    }
+
+    // Look for humidity percentage
+    const humidityMatch = html.match(/(\d+)\s*[%àa-]\s*(\d+)%/);
+    if (humidityMatch) {
+      humidity = `${humidityMatch[1]}-${humidityMatch[2]}%`;
+    }
+
+    return {
+      watering,
+      sunlight,
+      humidity
+    };
+  } catch (error) {
+    console.error('Chlorobase details error:', error.message);
+    return {
+      watering: 'Average',
+      sunlight: ['Bright indirect light'],
+      humidity: 'Average (40-60%)'
+    };
+  }
+}
+
 // Helper function to scrape plant info from Wikipedia as fallback
 async function scrapeWikipedia(plantName) {
   try {
@@ -480,6 +609,47 @@ app.get('/api/plants/search', authenticate, async (req, res) => {
       });
     }
 
+    // Try Chlorobase (curated plant database with care info)
+    console.log('Trying Chlorobase...');
+    const chlorobaseResults = await scrapeChlorobase(q);
+    if (chlorobaseResults && chlorobaseResults.length > 0) {
+      console.log(`Found ${chlorobaseResults.length} results from Chlorobase`);
+
+      // Cache the results with care data
+      for (const plant of chlorobaseResults) {
+        try {
+          const careData = await getChlorobaseDetails(plant.external_id);
+          db.prepare(`
+            INSERT OR IGNORE INTO plant_species_cache
+            (external_id, common_name, scientific_name, image_url, source, care_data, source_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            plant.id,
+            plant.common_name,
+            plant.scientific_name,
+            plant.image_url,
+            'chlorobase',
+            JSON.stringify(careData),
+            plant.source_url
+          );
+        } catch (err) {
+          console.error('Cache insert error:', err.message);
+        }
+      }
+
+      return res.json({
+        data: chlorobaseResults.map(p => ({
+          ...p,
+          default_image: p.image_url ? {
+            thumbnail: p.image_url,
+            regular_url: p.image_url
+          } : null
+        })),
+        from_cache: false,
+        source: 'chlorobase'
+      });
+    }
+
     // Try Wikipedia as last resort
     console.log('Trying Wikipedia...');
     const wikipediaResults = await scrapeWikipedia(q);
@@ -625,6 +795,35 @@ app.get('/api/plants/details/:id', authenticate, async (req, res) => {
         return res.json({
           ...trefleDetails,
           id: externalId,
+          from_cache: false
+        });
+      }
+    } else if (externalId.startsWith('chlorobase_')) {
+      const plantPath = externalId.replace('chlorobase_', '').replace(/_/g, '/');
+      const careData = await getChlorobaseDetails(plantPath);
+
+      if (careData) {
+        db.prepare(`
+          INSERT OR REPLACE INTO plant_species_cache
+          (external_id, common_name, scientific_name, care_data, source)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(
+          externalId,
+          'Chlorobase Plant',
+          plantPath.split('/').join(' '),
+          JSON.stringify(careData),
+          'chlorobase'
+        );
+
+        console.log('Cached Chlorobase plant details');
+
+        return res.json({
+          id: externalId,
+          common_name: 'Chlorobase Plant',
+          scientific_name: plantPath.split('/').join(' '),
+          watering: careData.watering,
+          sunlight: careData.sunlight,
+          humidity: careData.humidity,
           from_cache: false
         });
       }
