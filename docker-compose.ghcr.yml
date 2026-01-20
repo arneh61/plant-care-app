@@ -16,8 +16,8 @@ services:
       - TREFLE_API_KEY=${TREFLE_API_KEY}
       - PERENUAL_API_KEY=${PERENUAL_API_KEY}
     volumes:
-      - plant_data:/app/data
-      - plant_uploads:/app/data/uploads
+      - plant-data:/app/data
+      - plant-uploads:/app/data/uploads
     restart: unless-stopped
     networks:
       - plant-care-network
@@ -45,7 +45,7 @@ networks:
     driver: bridge
 
 volumes:
-  plant_data:
+  plant-data:
     driver: local
-  plant_uploads:
+  plant-uploads:
     driver: local

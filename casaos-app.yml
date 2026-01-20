@@ -16,10 +16,10 @@ services:
       PERENUAL_API_KEY: ${PERENUAL_API_KEY}
     volumes:
       - type: volume
-        source: plant_data
+        source: plant-data
         target: /app/data
       - type: volume
-        source: plant_uploads
+        source: plant-uploads
         target: /app/data/uploads
     networks:
       - plant-care-network
@@ -74,9 +74,9 @@ networks:
     driver: bridge
 
 volumes:
-  plant_data:
+  plant-data:
     driver: local
-  plant_uploads:
+  plant-uploads:
     driver: local
 
 x-casaos:
